@@ -1,0 +1,21 @@
+{
+  "name": "servico-produtos",
+  "version": "1.0.0",
+  "description": "Microserviço de Produtos - Controle de Vendas",
+  "main": "servidor.js",
+  "scripts": {
+    "iniciar": "node servidor.js",
+    "desenvolvimento": "nodemon servidor.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": ["microservico", "produtos", "nodejs", "express"],
+  "author": "Douglas",
+  "license": "MIT"
+}

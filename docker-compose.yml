@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Microserviço de Produtos (Node.js + Express)
+  servico-produtos:
+    build: ./servico-produtos
+    ports:
+      - "3001:3001"
+    environment:
+      - PORTA=3001
+    networks:
+      - rede-vendas
+
+  # Microserviço de Clientes (Python + Flask)
+  servico-clientes:
+    build: ./servico-clientes
+    ports:
+      - "3002:3002"
+    environment:
+      - PORTA_FLASK=3002
+    networks:
+      - rede-vendas
+
+  # Microserviço de Vendas (Go + Gin)
+  servico-vendas:
+    build: ./servico-vendas
+    ports:
+      - "3003:3003"
+    environment:
+      - PORTA=3003
+    networks:
+      - rede-vendas
+
+  # Frontend (React + Vite)
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_URL_API_PRODUTOS=http://localhost:3001
+      - VITE_URL_API_CLIENTES=http://localhost:3002
+      - VITE_URL_API_VENDAS=http://localhost:3003
+    depends_on:
+      - servico-produtos
+      - servico-clientes
+      - servico-vendas
+    networks:
+      - rede-vendas
+
+networks:
+  rede-vendas:
+    driver: bridge
