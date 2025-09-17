@@ -1,62 +1,66 @@
-import React, { useState } from 'react'
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom'
 import Produtos from './componentes/Produtos'
 import Clientes from './componentes/Clientes'
 import Vendas from './componentes/Vendas'
 import Dashboard from './componentes/Dashboard'
 
-function App() {
-  const [abaAtiva, setAbaAtiva] = useState('dashboard')
-
-  const renderizarAba = () => {
-    switch (abaAtiva) {
-      case 'produtos':
-        return <Produtos />
-      case 'clientes':
-        return <Clientes />
-      case 'vendas':
-        return <Vendas />
-      case 'dashboard':
-      default:
-        return <Dashboard />
-    }
+function Navigation() {
+  const location = useLocation()
+  
+  const isActive = (path) => {
+    return location.pathname === path
   }
 
   return (
-    <div className="container">
-      <header className="header">
-        <h1>🛒 Controle de Vendas</h1>
-        <p>Sistema de Microserviços - Programação Distribuída</p>
-      </header>
+    <nav className="nav">
+      <Link 
+        to="/"
+        className={isActive('/') ? 'ativo' : ''}
+      >
+        📊 Dashboard
+      </Link>
+      <Link 
+        to="/produtos"
+        className={isActive('/produtos') ? 'ativo' : ''}
+      >
+        📦 Produtos
+      </Link>
+      <Link 
+        to="/clientes"
+        className={isActive('/clientes') ? 'ativo' : ''}
+      >
+        👥 Clientes
+      </Link>
+      <Link 
+        to="/vendas"
+        className={isActive('/vendas') ? 'ativo' : ''}
+      >
+        💰 Vendas
+      </Link>
+    </nav>
+  )
+}
 
-      <nav className="nav">
-        <button 
-          className={abaAtiva === 'dashboard' ? 'ativo' : ''}
-          onClick={() => setAbaAtiva('dashboard')}
-        >
-          📊 Dashboard
-        </button>
-        <button 
-          className={abaAtiva === 'produtos' ? 'ativo' : ''}
-          onClick={() => setAbaAtiva('produtos')}
-        >
-          📦 Produtos
-        </button>
-        <button 
-          className={abaAtiva === 'clientes' ? 'ativo' : ''}
-          onClick={() => setAbaAtiva('clientes')}
-        >
-          👥 Clientes
-        </button>
-        <button 
-          className={abaAtiva === 'vendas' ? 'ativo' : ''}
-          onClick={() => setAbaAtiva('vendas')}
-        >
-          💰 Vendas
-        </button>
-      </nav>
+function App() {
+  return (
+    <Router>
+      <div className="container">
+        <header className="header">
+          <h1>🛒 Controle de Vendas</h1>
+          <p>Sistema de Microserviços - Programação Distribuída</p>
+        </header>
 
-      {renderizarAba()}
-    </div>
+        <Navigation />
+
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/produtos" element={<Produtos />} />
+          <Route path="/clientes" element={<Clientes />} />
+          <Route path="/vendas" element={<Vendas />} />
+        </Routes>
+      </div>
+    </Router>
   )
 }
 
