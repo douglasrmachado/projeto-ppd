@@ -229,20 +229,16 @@ function Vendas() {
         {estatisticas && Object.keys(estatisticas).length > 0 && (
           <div className="estatisticas">
             <div className="estatistica-card">
-              <h3>{estatisticas.totalVendas || 0}</h3>
+              <h3>{estatisticas.total_vendas || 0}</h3>
               <p>Total de Vendas</p>
             </div>
             <div className="estatistica-card">
-              <h3>R$ {estatisticas.valorTotalVendas ? parseFloat(estatisticas.valorTotalVendas).toFixed(2) : '0,00'}</h3>
+              <h3>R$ {estatisticas.valor_total_vendas ? parseFloat(estatisticas.valor_total_vendas).toFixed(2) : '0,00'}</h3>
               <p>Faturamento Total</p>
             </div>
             <div className="estatistica-card">
-              <h3>R$ {estatisticas.valorMedioVenda ? parseFloat(estatisticas.valorMedioVenda).toFixed(2) : '0,00'}</h3>
+              <h3>R$ {estatisticas.valor_medio_venda ? parseFloat(estatisticas.valor_medio_venda).toFixed(2) : '0,00'}</h3>
               <p>Ticket Médio</p>
-            </div>
-            <div className="estatistica-card">
-              <h3>🚀</h3>
-              <p>Goroutines</p>
             </div>
           </div>
         )}
@@ -292,6 +288,7 @@ function Vendas() {
           </div>
         )}
       </div>
+
     </div>
   )
 }

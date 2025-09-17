@@ -6,12 +6,33 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import json
+import mysql.connector
+from mysql.connector import Error
 
 app = Flask(__name__)
 CORS(app)
 
 # Configuração
 PORTA = 3002
+
+# Configuração do banco de dados
+DB_CONFIG = {
+    'host': 'mysql',
+    'port': 3306,
+    'user': 'vendas_user',
+    'password': 'vendas123',
+    'database': 'vendas_db',
+    'charset': 'utf8mb4'
+}
+
+def get_db_connection():
+    """Criar conexão com o banco de dados"""
+    try:
+        connection = mysql.connector.connect(**DB_CONFIG)
+        return connection
+    except Error as e:
+        print(f"Erro ao conectar com MySQL: {e}")
+        return None
 
 # Armazenamento em memória (simulando banco de dados)
 clientes = [
@@ -33,7 +54,7 @@ clientes = [
 clientes_lock = threading.Lock()
 
 # Função para simular processamento pesado com multithreading
-def processar_dados_clientes_paralelo():
+def processar_dados_clientes_paralelo(clientes_list):
     """
     Simula processamento pesado usando multithreading
     """
@@ -41,7 +62,7 @@ def processar_dados_clientes_paralelo():
         """Calcula estatísticas básicas dos clientes"""
         time.sleep(0.1)  # Simula processamento
         return {
-            'total_clientes': len(clientes),
+            'total_clientes': len(clientes_list),
             'timestamp': datetime.now().isoformat()
         }
     
@@ -49,7 +70,7 @@ def processar_dados_clientes_paralelo():
         """Valida formato dos telefones"""
         time.sleep(0.1)  # Simula processamento
         telefones_validos = 0
-        for cliente in clientes:
+        for cliente in clientes_list:
             if len(cliente['telefone']) >= 10:
                 telefones_validos += 1
         return {'telefones_validos': telefones_validos}
@@ -58,7 +79,7 @@ def processar_dados_clientes_paralelo():
         """Gera relatório de clientes"""
         time.sleep(0.1)  # Simula processamento
         return {
-            'relatorio': f'Relatório gerado com {len(clientes)} clientes',
+            'relatorio': f'Relatório gerado com {len(clientes_list)} clientes',
             'data_geracao': datetime.now().isoformat()
         }
     
@@ -86,13 +107,35 @@ def processar_dados_clientes_paralelo():
 def listar_clientes():
     """Listar todos os clientes com processamento paralelo"""
     try:
+        # Buscar clientes do banco de dados
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'erro': 'Erro ao conectar com o banco de dados'}), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM clientes ORDER BY data_criacao DESC")
+        clientes_db = cursor.fetchall()
+        
+        # Converter valores para o formato esperado
+        clientes_formatados = []
+        for cliente in clientes_db:
+            clientes_formatados.append({
+                'id': cliente['id'],
+                'nome': cliente['nome'],
+                'telefone': cliente['telefone'],
+                'data_criacao': cliente['data_criacao'].isoformat() if cliente['data_criacao'] else None
+            })
+        
+        cursor.close()
+        connection.close()
+        
         # Usar multithreading para processar dados
-        dados_processados = processar_dados_clientes_paralelo()
+        dados_processados = processar_dados_clientes_paralelo(clientes_formatados)
         
         return jsonify({
-            'clientes': clientes,
+            'clientes': clientes_formatados,
             'dados_processados': dados_processados,
-            'total': len(clientes)
+            'total': len(clientes_formatados)
         })
     except Exception as e:
         return jsonify({'erro': f'Erro interno do servidor: {str(e)}'}), 500
@@ -100,12 +143,34 @@ def listar_clientes():
 @app.route('/clientes/<cliente_id>', methods=['GET'])
 def buscar_cliente(cliente_id):
     """Buscar cliente por ID"""
-    cliente = next((c for c in clientes if c['id'] == cliente_id), None)
-    
-    if not cliente:
-        return jsonify({'erro': 'Cliente não encontrado'}), 404
-    
-    return jsonify(cliente)
+    try:
+        # Buscar cliente no banco de dados
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'erro': 'Erro ao conectar com o banco de dados'}), 500
+        
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM clientes WHERE id = %s", (cliente_id,))
+        cliente_db = cursor.fetchone()
+        
+        cursor.close()
+        connection.close()
+        
+        if not cliente_db:
+            return jsonify({'erro': 'Cliente não encontrado'}), 404
+        
+        # Converter para o formato esperado
+        cliente = {
+            'id': cliente_db['id'],
+            'nome': cliente_db['nome'],
+            'telefone': cliente_db['telefone'],
+            'data_criacao': cliente_db['data_criacao'].isoformat() if cliente_db['data_criacao'] else None
+        }
+        
+        return jsonify(cliente)
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro interno do servidor: {str(e)}'}), 500
 
 @app.route('/clientes', methods=['POST'])
 def cadastrar_cliente():
@@ -122,18 +187,37 @@ def cadastrar_cliente():
     if not nome or not telefone:
         return jsonify({'erro': 'Nome e telefone não podem estar vazios'}), 400
     
-    # Usar lock para thread safety
-    with clientes_lock:
+    try:
+        # Conectar com o banco de dados
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'erro': 'Erro ao conectar com o banco de dados'}), 500
+        
+        cursor = connection.cursor()
+        cliente_id = str(uuid.uuid4())
+        
+        # Inserir cliente no banco
+        cursor.execute(
+            "INSERT INTO clientes (id, nome, telefone) VALUES (%s, %s, %s)",
+            (cliente_id, nome, telefone)
+        )
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        # Retornar cliente criado
         novo_cliente = {
-            'id': str(uuid.uuid4()),
+            'id': cliente_id,
             'nome': nome,
             'telefone': telefone,
             'data_criacao': datetime.now().isoformat()
         }
         
-        clientes.append(novo_cliente)
-    
-    return jsonify(novo_cliente), 201
+        return jsonify(novo_cliente), 201
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro ao salvar cliente: {str(e)}'}), 500
 
 @app.route('/clientes/<cliente_id>', methods=['PUT'])
 def atualizar_cliente(cliente_id):
@@ -149,34 +233,78 @@ def atualizar_cliente(cliente_id):
     if not nome or not telefone:
         return jsonify({'erro': 'Nome e telefone não podem estar vazios'}), 400
     
-    # Usar lock para thread safety
-    with clientes_lock:
-        cliente_index = next((i for i, c in enumerate(clientes) if c['id'] == cliente_id), None)
+    try:
+        # Conectar com o banco de dados
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'erro': 'Erro ao conectar com o banco de dados'}), 500
         
-        if cliente_index is None:
+        cursor = connection.cursor()
+        
+        # Verificar se o cliente existe
+        cursor.execute("SELECT * FROM clientes WHERE id = %s", (cliente_id,))
+        cliente_existente = cursor.fetchone()
+        
+        if not cliente_existente:
+            cursor.close()
+            connection.close()
             return jsonify({'erro': 'Cliente não encontrado'}), 404
         
-        clientes[cliente_index].update({
+        # Atualizar cliente no banco
+        cursor.execute(
+            "UPDATE clientes SET nome = %s, telefone = %s WHERE id = %s",
+            (nome, telefone, cliente_id)
+        )
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        # Retornar cliente atualizado
+        cliente_atualizado = {
+            'id': cliente_id,
             'nome': nome,
             'telefone': telefone,
+            'data_criacao': cliente_existente[3].isoformat() if cliente_existente[3] else None,
             'data_atualizacao': datetime.now().isoformat()
-        })
-    
-    return jsonify(clientes[cliente_index])
+        }
+        
+        return jsonify(cliente_atualizado)
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro ao atualizar cliente: {str(e)}'}), 500
 
 @app.route('/clientes/<cliente_id>', methods=['DELETE'])
 def deletar_cliente(cliente_id):
     """Deletar cliente"""
-    # Usar lock para thread safety
-    with clientes_lock:
-        cliente_index = next((i for i, c in enumerate(clientes) if c['id'] == cliente_id), None)
+    try:
+        # Conectar com o banco de dados
+        connection = get_db_connection()
+        if not connection:
+            return jsonify({'erro': 'Erro ao conectar com o banco de dados'}), 500
         
-        if cliente_index is None:
+        cursor = connection.cursor()
+        
+        # Verificar se o cliente existe
+        cursor.execute("SELECT * FROM clientes WHERE id = %s", (cliente_id,))
+        cliente_existente = cursor.fetchone()
+        
+        if not cliente_existente:
+            cursor.close()
+            connection.close()
             return jsonify({'erro': 'Cliente não encontrado'}), 404
         
-        cliente_removido = clientes.pop(cliente_index)
-    
-    return jsonify({'mensagem': 'Cliente removido com sucesso', 'cliente': cliente_removido})
+        # Deletar cliente do banco
+        cursor.execute("DELETE FROM clientes WHERE id = %s", (cliente_id,))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        return jsonify({'mensagem': 'Cliente removido com sucesso'})
+        
+    except Exception as e:
+        return jsonify({'erro': f'Erro ao deletar cliente: {str(e)}'}), 500
 
 @app.route('/saude', methods=['GET'])
 def health_check():

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // Estruturas de dados
@@ -60,7 +62,37 @@ var (
 	vendas []Venda
 	mutex  sync.RWMutex
 	porta  = "3003"
+	db     *sql.DB
 )
+
+// Configuração do banco de dados
+const (
+	dbHost     = "mysql"
+	dbPort     = "3306"
+	dbUser     = "vendas_user"
+	dbPassword = "vendas123"
+	dbName     = "vendas_db"
+)
+
+// Inicializar conexão com o banco de dados
+func initDB() error {
+	var err error
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		dbUser, dbPassword, dbHost, dbPort, dbName)
+	
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("erro ao conectar com MySQL: %v", err)
+	}
+	
+	// Testar conexão
+	if err = db.Ping(); err != nil {
+		return fmt.Errorf("erro ao testar conexão MySQL: %v", err)
+	}
+	
+	log.Println("✅ Conectado ao MySQL com sucesso!")
+	return nil
+}
 
 // Função para simular busca de cliente via API
 func buscarCliente(clienteID string) (*Cliente, error) {
@@ -104,7 +136,185 @@ func buscarProduto(produtoID string) (*Produto, error) {
 	return &produto, nil
 }
 
-// Função para calcular estatísticas usando Goroutines
+// Função para buscar vendas do banco de dados
+func buscarVendasDoBanco() ([]Venda, error) {
+	query := `
+		SELECT v.id, v.cliente_id, v.cliente_nome, v.valor_total, v.data_venda, v.status
+		FROM vendas v
+		ORDER BY v.data_venda DESC
+	`
+	
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar vendas: %v", err)
+	}
+	defer rows.Close()
+	
+	var vendas []Venda
+	for rows.Next() {
+		var venda Venda
+		var dataVenda time.Time
+		
+		err := rows.Scan(&venda.ID, &venda.ClienteID, &venda.ClienteNome, 
+			&venda.ValorTotal, &dataVenda, &venda.Status)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao escanear venda: %v", err)
+		}
+		
+		venda.DataVenda = dataVenda.Format(time.RFC3339)
+		
+		// Buscar itens da venda
+		itens, err := buscarItensVenda(venda.ID)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao buscar itens da venda: %v", err)
+		}
+		venda.Itens = itens
+		
+		vendas = append(vendas, venda)
+	}
+	
+	return vendas, nil
+}
+
+// Função para buscar itens de uma venda
+func buscarItensVenda(vendaID string) ([]ItemVenda, error) {
+	query := `
+		SELECT produto_id, quantidade, valor_unitario, subtotal
+		FROM itens_venda
+		WHERE venda_id = ?
+	`
+	
+	rows, err := db.Query(query, vendaID)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar itens: %v", err)
+	}
+	defer rows.Close()
+	
+	var itens []ItemVenda
+	for rows.Next() {
+		var item ItemVenda
+		err := rows.Scan(&item.ProdutoID, &item.Quantidade, 
+			&item.ValorUnitario, &item.Subtotal)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao escanear item: %v", err)
+		}
+		itens = append(itens, item)
+	}
+	
+	return itens, nil
+}
+
+// Função para salvar venda no banco de dados
+func salvarVendaNoBanco(venda Venda) error {
+	// Iniciar transação
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("erro ao iniciar transação: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Inserir venda
+	queryVenda := `
+		INSERT INTO vendas (id, cliente_id, cliente_nome, valor_total, data_venda, status)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`
+	
+	_, err = tx.Exec(queryVenda, venda.ID, venda.ClienteID, venda.ClienteNome, 
+		venda.ValorTotal, time.Now(), venda.Status)
+	if err != nil {
+		return fmt.Errorf("erro ao inserir venda: %v", err)
+	}
+
+	// Inserir itens da venda
+	for _, item := range venda.Itens {
+		queryItem := `
+			INSERT INTO itens_venda (id, venda_id, produto_id, quantidade, valor_unitario, subtotal)
+			VALUES (?, ?, ?, ?, ?, ?)
+		`
+		
+		itemID := uuid.New().String()
+		_, err = tx.Exec(queryItem, itemID, venda.ID, item.ProdutoID, 
+			item.Quantidade, item.ValorUnitario, item.Subtotal)
+		if err != nil {
+			return fmt.Errorf("erro ao inserir item: %v", err)
+		}
+	}
+
+	// Confirmar transação
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("erro ao confirmar transação: %v", err)
+	}
+
+	return nil
+}
+
+// Função para calcular estatísticas usando Goroutines (versão banco)
+func calcularEstatisticasVendasDB(vendas []Venda) EstatisticasVendas {
+	if len(vendas) == 0 {
+		return EstatisticasVendas{
+			TotalVendas:      0,
+			ValorTotalVendas: 0,
+			ValorMedioVenda:  0,
+			VendaMaior:       0,
+			VendaMenor:       0,
+			Timestamp:        time.Now().Format(time.RFC3339),
+		}
+	}
+
+	// Canais para receber resultados das goroutines
+	totalChan := make(chan float64, 1)
+	maiorChan := make(chan float64, 1)
+	menorChan := make(chan float64, 1)
+	
+	// Goroutine para calcular valor total
+	go func() {
+		total := 0.0
+		for _, venda := range vendas {
+			total += venda.ValorTotal
+		}
+		totalChan <- total
+	}()
+
+	// Goroutine para encontrar maior venda
+	go func() {
+		maior := 0.0
+		for _, venda := range vendas {
+			if venda.ValorTotal > maior {
+				maior = venda.ValorTotal
+			}
+		}
+		maiorChan <- maior
+	}()
+
+	// Goroutine para encontrar menor venda
+	go func() {
+		menor := vendas[0].ValorTotal
+		for _, venda := range vendas {
+			if venda.ValorTotal < menor {
+				menor = venda.ValorTotal
+			}
+		}
+		menorChan <- menor
+	}()
+
+	// Aguardar resultados
+	valorTotal := <-totalChan
+	vendaMaior := <-maiorChan
+	vendaMenor := <-menorChan
+
+	valorMedio := valorTotal / float64(len(vendas))
+
+	return EstatisticasVendas{
+		TotalVendas:      len(vendas),
+		ValorTotalVendas: valorTotal,
+		ValorMedioVenda:  valorMedio,
+		VendaMaior:       vendaMaior,
+		VendaMenor:       vendaMenor,
+		Timestamp:        time.Now().Format(time.RFC3339),
+	}
+}
+
+// Função para calcular estatísticas usando Goroutines (versão memória - mantida para compatibilidade)
 func calcularEstatisticasVendas() EstatisticasVendas {
 	mutex.RLock()
 	vendasCopy := make([]Venda, len(vendas))
@@ -189,6 +399,12 @@ func main() {
 		porta = envPorta
 	}
 
+	// Inicializar conexão com o banco de dados
+	if err := initDB(); err != nil {
+		log.Fatalf("❌ Erro ao inicializar banco de dados: %v", err)
+	}
+	defer db.Close()
+
 	// Configurar Gin
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
@@ -211,18 +427,20 @@ func main() {
 
 	// GET /vendas - Listar todas as vendas
 	r.GET("/vendas", func(c *gin.Context) {
-		mutex.RLock()
-		vendasCopy := make([]Venda, len(vendas))
-		copy(vendasCopy, vendas)
-		mutex.RUnlock()
+		// Buscar vendas do banco de dados
+		vendasDB, err := buscarVendasDoBanco()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"erro": "Erro ao buscar vendas"})
+			return
+		}
 
 		// Calcular estatísticas usando Goroutines
-		estatisticas := calcularEstatisticasVendas()
+		estatisticas := calcularEstatisticasVendasDB(vendasDB)
 
 		c.JSON(http.StatusOK, gin.H{
-			"vendas":       vendasCopy,
+			"vendas":       vendasDB,
 			"estatisticas": estatisticas,
-			"total":        len(vendasCopy),
+			"total":        len(vendasDB),
 		})
 	})
 
@@ -315,10 +533,12 @@ func main() {
 				Status:      "concluida",
 			}
 
-			// Salvar venda com thread safety
-			mutex.Lock()
-			vendas = append(vendas, novaVenda)
-			mutex.Unlock()
+			// Salvar venda no banco de dados
+			err := salvarVendaNoBanco(novaVenda)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"erro": "Erro ao salvar venda"})
+				return
+			}
 
 			// Processar venda em background
 			go processarVendaBackground(novaVenda)
@@ -336,7 +556,15 @@ func main() {
 
 	// GET /estatisticas - Estatísticas das vendas
 	r.GET("/estatisticas", func(c *gin.Context) {
-		estatisticas := calcularEstatisticasVendas()
+		// Buscar vendas do banco de dados
+		vendasDB, err := buscarVendasDoBanco()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"erro": "Erro ao buscar vendas"})
+			return
+		}
+
+		// Calcular estatísticas usando Goroutines
+		estatisticas := calcularEstatisticasVendasDB(vendasDB)
 		c.JSON(http.StatusOK, estatisticas)
 	})
 

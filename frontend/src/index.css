@@ -152,6 +152,13 @@ body {
   background: #c53030;
 }
 
+/* Garantir que os botões na tabela sejam clicáveis */
+.tabela .btn {
+  position: relative;
+  z-index: 10;
+  pointer-events: auto;
+}
+
 .tabela {
   width: 100%;
   border-collapse: collapse;

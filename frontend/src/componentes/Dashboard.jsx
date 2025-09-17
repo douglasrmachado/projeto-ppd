@@ -21,7 +21,7 @@ function Dashboard() {
         verificarSaudeServicos(),
         servicoProdutos.listar(),
         servicoClientes.listar(),
-        servicoVendas.listar()
+        servicoVendas.estatisticas()
       ])
 
       setSaudeServicos(saude.value || {})
@@ -29,12 +29,12 @@ function Dashboard() {
       // Processar estatísticas
       const produtos = dadosProdutos.status === 'fulfilled' ? dadosProdutos.value.data : { produtos: [], estatisticas: {} }
       const clientes = dadosClientes.status === 'fulfilled' ? dadosClientes.value.data : { clientes: [], dados_processados: {} }
-      const vendas = dadosVendas.status === 'fulfilled' ? dadosVendas.value.data : { vendas: [], estatisticas: {} }
+      const vendas = dadosVendas.status === 'fulfilled' ? dadosVendas.value.data : { total_vendas: 0, valor_total_vendas: 0, valor_medio_venda: 0, venda_maior: 0, venda_menor: 0 }
 
       setEstatisticas({
         produtos: produtos.estatisticas || {},
         clientes: clientes.dados_processados || {},
-        vendas: vendas.estatisticas || {}
+        vendas: vendas || {}
       })
 
     } catch (erro) {
@@ -93,53 +93,16 @@ function Dashboard() {
             <p>Total de Clientes</p>
           </div>
           <div className="estatistica-card">
-            <h3>{estatisticas.vendas?.totalVendas || 0}</h3>
+            <h3>{estatisticas.vendas?.total_vendas || 0}</h3>
             <p>Total de Vendas</p>
           </div>
           <div className="estatistica-card">
-            <h3>R$ {estatisticas.vendas?.valorTotalVendas?.toFixed(2) || '0,00'}</h3>
+            <h3>R$ {estatisticas.vendas?.valor_total_vendas?.toFixed(2) || '0,00'}</h3>
             <p>Faturamento Total</p>
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <h2>🔧 Conceitos de Programação Distribuída</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-          <div>
-            <h3>📦 Serviço de Produtos</h3>
-            <ul>
-              <li>✅ Worker Threads (Node.js)</li>
-              <li>✅ Processamento paralelo de cálculos</li>
-              <li>✅ APIs REST</li>
-            </ul>
-          </div>
-          <div>
-            <h3>👥 Serviço de Clientes</h3>
-            <ul>
-              <li>✅ ThreadPoolExecutor (Python)</li>
-              <li>✅ Multithreading</li>
-              <li>✅ Thread Safety com Locks</li>
-            </ul>
-          </div>
-          <div>
-            <h3>💰 Serviço de Vendas</h3>
-            <ul>
-              <li>✅ Goroutines (Go)</li>
-              <li>✅ Channels para comunicação</li>
-              <li>✅ Select statements</li>
-            </ul>
-          </div>
-          <div>
-            <h3>🌐 Frontend</h3>
-            <ul>
-              <li>✅ React com Hooks</li>
-              <li>✅ Comunicação assíncrona</li>
-              <li>✅ Promise.allSettled</li>
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
