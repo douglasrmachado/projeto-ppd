@@ -157,14 +157,6 @@ function Clientes() {
               <h3>{estatisticas.validacao?.telefones_validos || 0}</h3>
               <p>Telefones Válidos</p>
             </div>
-            <div className="estatistica-card">
-              <h3>✅</h3>
-              <p>Processamento Paralelo</p>
-            </div>
-            <div className="estatistica-card">
-              <h3>🔒</h3>
-              <p>Thread Safety</p>
-            </div>
           </div>
         )}
 
