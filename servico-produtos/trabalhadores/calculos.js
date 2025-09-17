@@ -2,7 +2,7 @@ const { parentPort, workerData } = require('worker_threads');
 
 // Simular processamento pesado de cálculos estatísticos
 function calcularEstatisticas(produtos) {
-  const valores = produtos.map(p => p.valor);
+  const valores = produtos.map(p => parseFloat(p.valor));
   
   // Cálculos estatísticos
   const soma = valores.reduce((acc, val) => acc + val, 0);

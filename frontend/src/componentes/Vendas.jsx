@@ -24,6 +24,8 @@ function Vendas() {
       setCarregando(true)
       setErro(null)
       
+      console.log('🔄 Carregando dados de vendas...')
+      
       // Carregar dados em paralelo usando Promise.allSettled
       const [dadosVendas, dadosClientes, dadosProdutos] = await Promise.allSettled([
         servicoVendas.listar(),
@@ -31,22 +33,33 @@ function Vendas() {
         servicoProdutos.listar()
       ])
 
+      console.log('📊 Resultados:', { dadosVendas, dadosClientes, dadosProdutos })
+
       if (dadosVendas.status === 'fulfilled') {
         setVendas(dadosVendas.value.data.vendas)
         setEstatisticas(dadosVendas.value.data.estatisticas)
+        console.log('✅ Vendas carregadas:', dadosVendas.value.data.vendas.length)
+      } else {
+        console.error('❌ Erro ao carregar vendas:', dadosVendas.reason)
       }
 
       if (dadosClientes.status === 'fulfilled') {
         setClientes(dadosClientes.value.data.clientes)
+        console.log('✅ Clientes carregados:', dadosClientes.value.data.clientes.length)
+      } else {
+        console.error('❌ Erro ao carregar clientes:', dadosClientes.reason)
       }
 
       if (dadosProdutos.status === 'fulfilled') {
         setProdutos(dadosProdutos.value.data.produtos)
+        console.log('✅ Produtos carregados:', dadosProdutos.value.data.produtos.length)
+      } else {
+        console.error('❌ Erro ao carregar produtos:', dadosProdutos.reason)
       }
 
     } catch (erro) {
       setErro('Erro ao carregar dados')
-      console.error('Erro:', erro)
+      console.error('❌ Erro geral:', erro)
     } finally {
       setCarregando(false)
     }
@@ -75,7 +88,7 @@ function Vendas() {
   const calcularTotal = () => {
     return formulario.itens.reduce((total, item) => {
       const produto = produtos.find(p => p.id === item.produto_id)
-      return total + (produto ? produto.valor * item.quantidade : 0)
+      return total + (produto ? parseFloat(produto.valor) * item.quantidade : 0)
     }, 0)
   }
 
@@ -170,7 +183,7 @@ function Vendas() {
                     <option value="">Selecione um produto</option>
                     {produtos.map(produto => (
                       <option key={produto.id} value={produto.id}>
-                        {produto.nome} - R$ {produto.valor.toFixed(2)}
+                        {produto.nome} - R$ {parseFloat(produto.valor).toFixed(2)}
                       </option>
                     ))}
                   </select>
@@ -220,11 +233,11 @@ function Vendas() {
               <p>Total de Vendas</p>
             </div>
             <div className="estatistica-card">
-              <h3>R$ {estatisticas.valorTotalVendas?.toFixed(2) || '0,00'}</h3>
+              <h3>R$ {estatisticas.valorTotalVendas ? parseFloat(estatisticas.valorTotalVendas).toFixed(2) : '0,00'}</h3>
               <p>Faturamento Total</p>
             </div>
             <div className="estatistica-card">
-              <h3>R$ {estatisticas.valorMedioVenda?.toFixed(2) || '0,00'}</h3>
+              <h3>R$ {estatisticas.valorMedioVenda ? parseFloat(estatisticas.valorMedioVenda).toFixed(2) : '0,00'}</h3>
               <p>Ticket Médio</p>
             </div>
             <div className="estatistica-card">
@@ -251,11 +264,11 @@ function Vendas() {
                 <td>
                   {venda.itens.map((item, index) => (
                     <div key={index} style={{ fontSize: '0.9em' }}>
-                      {item.quantidade}x - R$ {item.valor_unitario.toFixed(2)}
+                      {item.quantidade}x - R$ {parseFloat(item.valor_unitario).toFixed(2)}
                     </div>
                   ))}
                 </td>
-                <td>R$ {venda.valor_total.toFixed(2)}</td>
+                <td>R$ {parseFloat(venda.valor_total).toFixed(2)}</td>
                 <td>{new Date(venda.data_venda).toLocaleDateString('pt-BR')}</td>
                 <td>
                   <span style={{ 

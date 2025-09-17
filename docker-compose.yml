@@ -9,7 +9,7 @@ services:
       MYSQL_USER: vendas_user
       MYSQL_PASSWORD: vendas123
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -73,9 +73,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - VITE_URL_API_PRODUTOS=http://localhost:3001
-      - VITE_URL_API_CLIENTES=http://localhost:3002
-      - VITE_URL_API_VENDAS=http://localhost:3003
+      - VITE_URL_API_PRODUTOS=http://servico-produtos:3001
+      - VITE_URL_API_CLIENTES=http://servico-clientes:3002
+      - VITE_URL_API_VENDAS=http://servico-vendas:3003
     depends_on:
       - servico-produtos
       - servico-clientes

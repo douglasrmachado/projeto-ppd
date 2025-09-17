@@ -60,13 +60,19 @@ app.get('/produtos', async (req, res) => {
       'SELECT * FROM produtos ORDER BY data_criacao DESC'
     );
     
+    // Converter valores para números
+    const produtosFormatados = produtos.map(produto => ({
+      ...produto,
+      valor: parseFloat(produto.valor)
+    }));
+    
     // Usar worker thread para calcular estatísticas em paralelo
-    const estatisticas = await calcularEstatisticasProdutos(produtos);
+    const estatisticas = await calcularEstatisticasProdutos(produtosFormatados);
     
     res.json({
-      produtos,
+      produtos: produtosFormatados,
       estatisticas,
-      total: produtos.length
+      total: produtosFormatados.length
     });
   } catch (erro) {
     console.error('Erro ao listar produtos:', erro);
@@ -87,7 +93,13 @@ app.get('/produtos/:id', async (req, res) => {
       return res.status(404).json({ erro: 'Produto não encontrado' });
     }
     
-    res.json(produtos[0]);
+    // Converter valor para número
+    const produto = {
+      ...produtos[0],
+      valor: parseFloat(produtos[0].valor)
+    };
+    
+    res.json(produto);
   } catch (erro) {
     console.error('Erro ao buscar produto:', erro);
     res.status(500).json({ erro: 'Erro interno do servidor' });
