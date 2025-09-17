@@ -3,34 +3,32 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const { Worker } = require('worker_threads');
 const path = require('path');
+const mysql = require('mysql2/promise');
 
 const app = express();
 const PORTA = process.env.PORTA || 3001;
+
+// Configuração do banco de dados
+const dbConfig = {
+  host: process.env.DB_HOST || 'localhost',
+  port: process.env.DB_PORT || 3306,
+  user: process.env.DB_USER || 'vendas_user',
+  password: process.env.DB_PASSWORD || 'vendas123',
+  database: process.env.DB_NAME || 'vendas_db',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+};
+
+// Pool de conexões MySQL
+const pool = mysql.createPool(dbConfig);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Armazenamento em memória (simulando banco de dados)
-let produtos = [
-  {
-    id: uuidv4(),
-    nome: 'Notebook Dell',
-    descricao: 'Notebook Dell Inspiron 15 3000',
-    valor: 2500.00,
-    dataCriacao: new Date().toISOString()
-  },
-  {
-    id: uuidv4(),
-    nome: 'Mouse Logitech',
-    descricao: 'Mouse sem fio Logitech M705',
-    valor: 89.90,
-    dataCriacao: new Date().toISOString()
-  }
-];
-
 // Worker thread para processamento paralelo de cálculos
-function calcularEstatisticasProdutos() {
+function calcularEstatisticasProdutos(produtos) {
   return new Promise((resolve, reject) => {
     const worker = new Worker(path.join(__dirname, 'trabalhadores', 'calculos.js'), {
       workerData: { produtos }
@@ -57,8 +55,13 @@ function calcularEstatisticasProdutos() {
 // GET /produtos - Listar todos os produtos
 app.get('/produtos', async (req, res) => {
   try {
+    // Buscar produtos do banco
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos ORDER BY data_criacao DESC'
+    );
+    
     // Usar worker thread para calcular estatísticas em paralelo
-    const estatisticas = await calcularEstatisticasProdutos();
+    const estatisticas = await calcularEstatisticasProdutos(produtos);
     
     res.json({
       produtos,
@@ -72,94 +75,121 @@ app.get('/produtos', async (req, res) => {
 });
 
 // GET /produtos/:id - Buscar produto por ID
-app.get('/produtos/:id', (req, res) => {
-  const { id } = req.params;
-  const produto = produtos.find(p => p.id === id);
-  
-  if (!produto) {
-    return res.status(404).json({ erro: 'Produto não encontrado' });
+app.get('/produtos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos WHERE id = ?',
+      [id]
+    );
+    
+    if (produtos.length === 0) {
+      return res.status(404).json({ erro: 'Produto não encontrado' });
+    }
+    
+    res.json(produtos[0]);
+  } catch (erro) {
+    console.error('Erro ao buscar produto:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
   }
-  
-  res.json(produto);
 });
 
 // POST /produtos - Cadastrar novo produto
-app.post('/produtos', (req, res) => {
-  const { nome, descricao, valor } = req.body;
-  
-  // Validação básica
-  if (!nome || !descricao || !valor) {
-    return res.status(400).json({ 
-      erro: 'Nome, descrição e valor são obrigatórios' 
-    });
+app.post('/produtos', async (req, res) => {
+  try {
+    const { nome, descricao, valor } = req.body;
+    
+    // Validação básica
+    if (!nome || !descricao || !valor) {
+      return res.status(400).json({ 
+        erro: 'Nome, descrição e valor são obrigatórios' 
+      });
+    }
+    
+    if (valor <= 0) {
+      return res.status(400).json({ 
+        erro: 'Valor deve ser maior que zero' 
+      });
+    }
+    
+    const id = uuidv4();
+    const [result] = await pool.execute(
+      'INSERT INTO produtos (id, nome, descricao, valor) VALUES (?, ?, ?, ?)',
+      [id, nome.trim(), descricao.trim(), parseFloat(valor)]
+    );
+    
+    // Buscar o produto criado
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos WHERE id = ?',
+      [id]
+    );
+    
+    res.status(201).json(produtos[0]);
+  } catch (erro) {
+    console.error('Erro ao criar produto:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
   }
-  
-  if (valor <= 0) {
-    return res.status(400).json({ 
-      erro: 'Valor deve ser maior que zero' 
-    });
-  }
-  
-  const novoProduto = {
-    id: uuidv4(),
-    nome: nome.trim(),
-    descricao: descricao.trim(),
-    valor: parseFloat(valor),
-    dataCriacao: new Date().toISOString()
-  };
-  
-  produtos.push(novoProduto);
-  
-  res.status(201).json(novoProduto);
 });
 
 // PUT /produtos/:id - Atualizar produto
-app.put('/produtos/:id', (req, res) => {
-  const { id } = req.params;
-  const { nome, descricao, valor } = req.body;
-  
-  const indiceProduto = produtos.findIndex(p => p.id === id);
-  
-  if (indiceProduto === -1) {
-    return res.status(404).json({ erro: 'Produto não encontrado' });
+app.put('/produtos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nome, descricao, valor } = req.body;
+    
+    // Validação básica
+    if (!nome || !descricao || !valor) {
+      return res.status(400).json({ 
+        erro: 'Nome, descrição e valor são obrigatórios' 
+      });
+    }
+    
+    if (valor <= 0) {
+      return res.status(400).json({ 
+        erro: 'Valor deve ser maior que zero' 
+      });
+    }
+    
+    const [result] = await pool.execute(
+      'UPDATE produtos SET nome = ?, descricao = ?, valor = ? WHERE id = ?',
+      [nome.trim(), descricao.trim(), parseFloat(valor), id]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ erro: 'Produto não encontrado' });
+    }
+    
+    // Buscar o produto atualizado
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos WHERE id = ?',
+      [id]
+    );
+    
+    res.json(produtos[0]);
+  } catch (erro) {
+    console.error('Erro ao atualizar produto:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
   }
-  
-  // Validação básica
-  if (!nome || !descricao || !valor) {
-    return res.status(400).json({ 
-      erro: 'Nome, descrição e valor são obrigatórios' 
-    });
-  }
-  
-  if (valor <= 0) {
-    return res.status(400).json({ 
-      erro: 'Valor deve ser maior que zero' 
-    });
-  }
-  
-  produtos[indiceProduto] = {
-    ...produtos[indiceProduto],
-    nome: nome.trim(),
-    descricao: descricao.trim(),
-    valor: parseFloat(valor),
-    dataAtualizacao: new Date().toISOString()
-  };
-  
-  res.json(produtos[indiceProduto]);
 });
 
 // DELETE /produtos/:id - Deletar produto
-app.delete('/produtos/:id', (req, res) => {
-  const { id } = req.params;
-  const indiceProduto = produtos.findIndex(p => p.id === id);
-  
-  if (indiceProduto === -1) {
-    return res.status(404).json({ erro: 'Produto não encontrado' });
+app.delete('/produtos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.execute(
+      'DELETE FROM produtos WHERE id = ?',
+      [id]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ erro: 'Produto não encontrado' });
+    }
+    
+    res.status(204).send();
+  } catch (erro) {
+    console.error('Erro ao deletar produto:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
   }
-  
-  produtos.splice(indiceProduto, 1);
-  
-  res.status(204).send();
 });
 
 // Health check

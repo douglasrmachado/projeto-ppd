@@ -1,6 +1,21 @@
-version: '3.8'
-
 services:
+  # Banco de dados MySQL
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-vendas
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: vendas_db
+      MYSQL_USER: vendas_user
+      MYSQL_PASSWORD: vendas123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - rede-vendas
+
   # Microserviço de Produtos (Node.js + Express)
   servico-produtos:
     build: ./servico-produtos
@@ -8,6 +23,13 @@ services:
       - "3001:3001"
     environment:
       - PORTA=3001
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=vendas_user
+      - DB_PASSWORD=vendas123
+      - DB_NAME=vendas_db
+    depends_on:
+      - mysql
     networks:
       - rede-vendas
 
@@ -18,6 +40,13 @@ services:
       - "3002:3002"
     environment:
       - PORTA_FLASK=3002
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=vendas_user
+      - DB_PASSWORD=vendas123
+      - DB_NAME=vendas_db
+    depends_on:
+      - mysql
     networks:
       - rede-vendas
 
@@ -28,6 +57,13 @@ services:
       - "3003:3003"
     environment:
       - PORTA=3003
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=vendas_user
+      - DB_PASSWORD=vendas123
+      - DB_NAME=vendas_db
+    depends_on:
+      - mysql
     networks:
       - rede-vendas
 
@@ -46,6 +82,9 @@ services:
       - servico-vendas
     networks:
       - rede-vendas
+
+volumes:
+  mysql_data:
 
 networks:
   rede-vendas:

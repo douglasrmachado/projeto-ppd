@@ -4,14 +4,14 @@ FROM golang:1.21-alpine AS builder
 # Definir diretório de trabalho
 WORKDIR /app
 
-# Copiar go.mod e go.sum
-COPY go.mod go.sum ./
-
-# Baixar dependências
-RUN go mod download
+# Copiar go.mod
+COPY go.mod ./
 
 # Copiar código fonte
 COPY . .
+
+# Baixar dependências e gerar go.sum
+RUN go mod tidy
 
 # Compilar aplicação
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .

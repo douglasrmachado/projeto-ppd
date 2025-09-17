@@ -325,9 +325,9 @@ func main() {
 
 			c.JSON(http.StatusCreated, novaVenda)
 
-		case err := <-erroClienteChan:
+		case <-erroClienteChan:
 			c.JSON(http.StatusBadRequest, gin.H{"erro": "Cliente não encontrado"})
-		case err := <-erroProdutoChan:
+		case <-erroProdutoChan:
 			c.JSON(http.StatusBadRequest, gin.H{"erro": "Produto não encontrado"})
 		case <-time.After(5 * time.Second):
 			c.JSON(http.StatusRequestTimeout, gin.H{"erro": "Timeout na consulta aos serviços"})
