@@ -12,7 +12,9 @@ function Produtos() {
   const [formulario, setFormulario] = useState({
     nome: '',
     descricao: '',
-    valor: ''
+    valor: '',
+    quantidade: '',
+    quantidade_minima: ''
   })
 
   useEffect(() => {
@@ -35,7 +37,7 @@ function Produtos() {
   }
 
   const limparFormulario = () => {
-    setFormulario({ nome: '', descricao: '', valor: '' })
+    setFormulario({ nome: '', descricao: '', valor: '', quantidade: '', quantidade_minima: '' })
     setProdutoEditando(null)
     setMostrarFormulario(false)
   }
@@ -44,7 +46,9 @@ function Produtos() {
     setFormulario({
       nome: produto.nome,
       descricao: produto.descricao,
-      valor: produto.valor.toString()
+      valor: produto.valor.toString(),
+      quantidade: produto.quantidade?.toString() || '0',
+      quantidade_minima: produto.quantidade_minima?.toString() || '5'
     })
     setProdutoEditando(produto)
     setMostrarFormulario(true)
@@ -57,7 +61,9 @@ function Produtos() {
       const dados = {
         nome: formulario.nome,
         descricao: formulario.descricao,
-        valor: parseFloat(formulario.valor)
+        valor: parseFloat(formulario.valor),
+        quantidade: parseInt(formulario.quantidade) || 0,
+        quantidade_minima: parseInt(formulario.quantidade_minima) || 5
       }
 
       if (produtoEditando) {
@@ -117,7 +123,7 @@ function Produtos() {
         </div>
 
         {mostrarFormulario && (
-          <form onSubmit={salvarProduto} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '10px' }}>
+          <form onSubmit={salvarProduto} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '0px' }}>
             <h3>{produtoEditando ? 'Editar Produto' : 'Novo Produto'}</h3>
             
             <div className="form-group">
@@ -148,6 +154,28 @@ function Produtos() {
                 min="0"
                 value={formulario.valor}
                 onChange={(e) => setFormulario({ ...formulario, valor: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Quantidade em Estoque:</label>
+              <input
+                type="number"
+                min="0"
+                value={formulario.quantidade}
+                onChange={(e) => setFormulario({ ...formulario, quantidade: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Quantidade Mínima:</label>
+              <input
+                type="number"
+                min="0"
+                value={formulario.quantidade_minima}
+                onChange={(e) => setFormulario({ ...formulario, quantidade_minima: e.target.value })}
                 required
               />
             </div>
@@ -188,31 +216,48 @@ function Produtos() {
               <th>Nome</th>
               <th>Descrição</th>
               <th>Valor</th>
+              <th>Estoque</th>
+              <th>Status</th>
               <th>Ações</th>
             </tr>
           </thead>
           <tbody>
-            {produtos.map((produto) => (
-              <tr key={produto.id}>
-                <td>{produto.nome}</td>
-                <td>{produto.descricao}</td>
-                <td>R$ {produto.valor.toFixed(2)}</td>
-                <td>
-                  <button 
-                    className="btn btn-secundario" 
-                    onClick={() => preencherFormulario(produto)}
-                  >
-                    Editar
-                  </button>
-                  <button 
-                    className="btn btn-perigo" 
-                    onClick={() => deletarProduto(produto.id)}
-                  >
-                    Deletar
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {produtos.map((produto) => {
+              const estoqueBaixo = produto.quantidade <= produto.quantidade_minima;
+              return (
+                <tr key={produto.id} className={estoqueBaixo ? 'estoque-baixo' : ''}>
+                  <td>{produto.nome}</td>
+                  <td>{produto.descricao}</td>
+                  <td>R$ {produto.valor.toFixed(2)}</td>
+                  <td>
+                    <span className={estoqueBaixo ? 'texto-aviso' : ''}>
+                      {produto.quantidade || 0}
+                    </span>
+                  </td>
+                  <td>
+                    {estoqueBaixo ? (
+                      <span className="status-aviso">⚠️ Estoque Baixo</span>
+                    ) : (
+                      <span className="status-ok">✅ OK</span>
+                    )}
+                  </td>
+                  <td>
+                    <button 
+                      className="btn btn-secundario" 
+                      onClick={() => preencherFormulario(produto)}
+                    >
+                      Editar
+                    </button>
+                    <button 
+                      className="btn btn-perigo" 
+                      onClick={() => deletarProduto(produto.id)}
+                    >
+                      Deletar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

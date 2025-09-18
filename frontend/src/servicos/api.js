@@ -48,6 +48,7 @@ export const servicoVendas = {
   buscar: (id) => apiVendas.get(`/vendas/${id}`),
   criar: (dados) => apiVendas.post('/vendas', dados),
   estatisticas: () => apiVendas.get('/estatisticas'),
+  vendasDoMes: (ano, mes) => apiVendas.get(`/vendas/mes/${ano}/${mes}`),
   saude: () => apiVendas.get('/saude')
 }
 

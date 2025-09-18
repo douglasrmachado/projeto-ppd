@@ -176,6 +176,47 @@ func buscarVendasDoBanco() ([]Venda, error) {
 	return vendas, nil
 }
 
+// Função para buscar vendas de um mês específico
+func buscarVendasDoMes(ano, mes string) ([]Venda, error) {
+	query := `
+		SELECT v.id, v.cliente_id, v.cliente_nome, v.valor_total, v.data_venda, v.status
+		FROM vendas v
+		WHERE YEAR(v.data_venda) = ? AND MONTH(v.data_venda) = ?
+		ORDER BY v.data_venda DESC
+	`
+	
+	rows, err := db.Query(query, ano, mes)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar vendas do mês: %v", err)
+	}
+	defer rows.Close()
+	
+	var vendas []Venda
+	for rows.Next() {
+		var venda Venda
+		var dataVenda time.Time
+		
+		err := rows.Scan(&venda.ID, &venda.ClienteID, &venda.ClienteNome, 
+			&venda.ValorTotal, &dataVenda, &venda.Status)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao escanear venda: %v", err)
+		}
+		
+		venda.DataVenda = dataVenda.Format(time.RFC3339)
+		
+		// Buscar itens da venda
+		itens, err := buscarItensVenda(venda.ID)
+		if err != nil {
+			return nil, fmt.Errorf("erro ao buscar itens da venda: %v", err)
+		}
+		venda.Itens = itens
+		
+		vendas = append(vendas, venda)
+	}
+	
+	return vendas, nil
+}
+
 // Função para buscar itens de uma venda
 func buscarItensVenda(vendaID string) ([]ItemVenda, error) {
 	query := `
@@ -566,6 +607,29 @@ func main() {
 		// Calcular estatísticas usando Goroutines
 		estatisticas := calcularEstatisticasVendasDB(vendasDB)
 		c.JSON(http.StatusOK, estatisticas)
+	})
+
+	// GET /vendas/mes/:ano/:mes - Buscar vendas de um mês específico
+	r.GET("/vendas/mes/:ano/:mes", func(c *gin.Context) {
+		ano := c.Param("ano")
+		mes := c.Param("mes")
+		
+		// Buscar vendas do mês específico
+		vendasMes, err := buscarVendasDoMes(ano, mes)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"erro": "Erro ao buscar vendas do mês"})
+			return
+		}
+
+		// Calcular estatísticas do mês usando Goroutines
+		estatisticasMes := calcularEstatisticasVendasDB(vendasMes)
+		
+		c.JSON(http.StatusOK, gin.H{
+			"vendas":       vendasMes,
+			"estatisticas": estatisticasMes,
+			"total":        len(vendasMes),
+			"mes":          fmt.Sprintf("%s/%s", mes, ano),
+		})
 	})
 
 	// Health check

@@ -4,6 +4,7 @@ import Produtos from './componentes/Produtos'
 import Clientes from './componentes/Clientes'
 import Vendas from './componentes/Vendas'
 import Dashboard from './componentes/Dashboard'
+import logo from './assets/logo.svg'
 
 function Navigation() {
   const location = useLocation()
@@ -47,7 +48,10 @@ function App() {
     <Router>
       <div className="container">
         <header className="header">
-          <h1>🛒 Controle de Vendas</h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '8px' }}>
+            <img src={logo} alt="Logo" style={{ width: '48px', height: '48px' }} />
+            <h1>Controle de Vendas</h1>
+          </div>
           <p>Sistema de Microserviços - Programação Distribuída</p>
         </header>
 

@@ -114,7 +114,7 @@ function Clientes() {
         </div>
 
         {mostrarFormulario && (
-          <form onSubmit={salvarCliente} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '10px' }}>
+          <form onSubmit={salvarCliente} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '0px' }}>
             <h3>{clienteEditando ? 'Editar Cliente' : 'Novo Cliente'}</h3>
             
             <div className="form-group">

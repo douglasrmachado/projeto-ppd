@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { verificarSaudeServicos, servicoProdutos, servicoClientes, servicoVendas } from '../servicos/api'
+import { servicoProdutos, servicoClientes, servicoVendas } from '../servicos/api'
 
 function Dashboard() {
-  const [saudeServicos, setSaudeServicos] = useState({})
   const [estatisticas, setEstatisticas] = useState({})
+  const [vendasMesAtual, setVendasMesAtual] = useState({})
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState(null)
 
@@ -16,26 +16,32 @@ function Dashboard() {
       setCarregando(true)
       setErro(null)
 
-      // Verificar saúde dos serviços e carregar estatísticas em paralelo
-      const [saude, dadosProdutos, dadosClientes, dadosVendas] = await Promise.allSettled([
-        verificarSaudeServicos(),
+      // Obter mês atual
+      const agora = new Date()
+      const anoAtual = agora.getFullYear()
+      const mesAtual = String(agora.getMonth() + 1).padStart(2, '0')
+
+      // Carregar estatísticas em paralelo
+      const [dadosProdutos, dadosClientes, dadosVendas, dadosVendasMes] = await Promise.allSettled([
         servicoProdutos.listar(),
         servicoClientes.listar(),
-        servicoVendas.estatisticas()
+        servicoVendas.estatisticas(),
+        servicoVendas.vendasDoMes(anoAtual, mesAtual)
       ])
-
-      setSaudeServicos(saude.value || {})
 
       // Processar estatísticas
       const produtos = dadosProdutos.status === 'fulfilled' ? dadosProdutos.value.data : { produtos: [], estatisticas: {} }
       const clientes = dadosClientes.status === 'fulfilled' ? dadosClientes.value.data : { clientes: [], dados_processados: {} }
       const vendas = dadosVendas.status === 'fulfilled' ? dadosVendas.value.data : { total_vendas: 0, valor_total_vendas: 0, valor_medio_venda: 0, venda_maior: 0, venda_menor: 0 }
+      const vendasMes = dadosVendasMes.status === 'fulfilled' ? dadosVendasMes.value.data : { vendas: [], estatisticas: {}, total: 0, mes: `${mesAtual}/${anoAtual}` }
 
       setEstatisticas({
         produtos: produtos.estatisticas || {},
         clientes: clientes.dados_processados || {},
         vendas: vendas || {}
       })
+
+      setVendasMesAtual(vendasMes || {})
 
     } catch (erro) {
       setErro('Erro ao carregar dados do dashboard')
@@ -45,13 +51,6 @@ function Dashboard() {
     }
   }
 
-  const StatusServico = ({ nome, dados }) => (
-    <div className="estatistica-card">
-      <h3>{dados ? '✅' : '❌'}</h3>
-      <p>{nome}</p>
-      <small>{dados ? 'Online' : 'Offline'}</small>
-    </div>
-  )
 
   if (carregando) {
     return (
@@ -63,14 +62,6 @@ function Dashboard() {
 
   return (
     <div>
-      <div className="card">
-        <h2>📊 Status dos Serviços</h2>
-        <div className="estatisticas">
-          <StatusServico nome="Produtos" dados={saudeServicos.produtos} />
-          <StatusServico nome="Clientes" dados={saudeServicos.clientes} />
-          <StatusServico nome="Vendas" dados={saudeServicos.vendas} />
-        </div>
-      </div>
 
       {erro && (
         <div className="card">
@@ -99,6 +90,28 @@ function Dashboard() {
           <div className="estatistica-card">
             <h3>R$ {estatisticas.vendas?.valor_total_vendas?.toFixed(2) || '0,00'}</h3>
             <p>Faturamento Total</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>📅 Vendas do Mês Atual ({vendasMesAtual.mes || 'Carregando...'})</h2>
+        <div className="estatisticas">
+          <div className="estatistica-card">
+            <h3>{vendasMesAtual.total || 0}</h3>
+            <p>Vendas do Mês</p>
+          </div>
+          <div className="estatistica-card">
+            <h3>R$ {vendasMesAtual.estatisticas?.valor_total_vendas?.toFixed(2) || '0,00'}</h3>
+            <p>Faturamento do Mês</p>
+          </div>
+          <div className="estatistica-card">
+            <h3>R$ {vendasMesAtual.estatisticas?.valor_medio_venda?.toFixed(2) || '0,00'}</h3>
+            <p>Ticket Médio</p>
+          </div>
+          <div className="estatistica-card">
+            <h3>R$ {vendasMesAtual.estatisticas?.venda_maior?.toFixed(2) || '0,00'}</h3>
+            <p>Maior Venda</p>
           </div>
         </div>
       </div>

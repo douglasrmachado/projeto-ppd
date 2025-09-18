@@ -141,7 +141,7 @@ function Vendas() {
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2>💰 Vendas</h2>
+          <h2>🛒 Vendas</h2>
           <button 
             className="btn" 
             onClick={() => setMostrarFormulario(!mostrarFormulario)}
@@ -151,7 +151,7 @@ function Vendas() {
         </div>
 
         {mostrarFormulario && (
-          <form onSubmit={criarVenda} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '10px' }}>
+          <form onSubmit={criarVenda} style={{ marginBottom: '30px', padding: '20px', background: '#f7fafc', borderRadius: '0px' }}>
             <h3>Nova Venda</h3>
             
             <div className="form-group">
@@ -213,7 +213,7 @@ function Vendas() {
               </button>
             </div>
 
-            <div style={{ padding: '15px', background: '#e6fffa', borderRadius: '8px', marginBottom: '20px' }}>
+            <div style={{ padding: '15px', background: '#e6fffa', borderRadius: '0px', marginBottom: '20px' }}>
               <strong>Total: R$ {calcularTotal().toFixed(2)}</strong>
             </div>
 
@@ -249,7 +249,7 @@ function Vendas() {
               <th>Cliente</th>
               <th>Itens</th>
               <th>Valor Total</th>
-              <th>Data</th>
+              <th>Data e Horário</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -265,11 +265,18 @@ function Vendas() {
                   ))}
                 </td>
                 <td>R$ {parseFloat(venda.valor_total).toFixed(2)}</td>
-                <td>{new Date(venda.data_venda).toLocaleDateString('pt-BR')}</td>
+                <td>
+                  <div style={{ fontSize: '0.9em' }}>
+                    <div>{new Date(venda.data_venda).toLocaleDateString('pt-BR')}</div>
+                    <div style={{ color: '#6b7280', fontSize: '0.8em' }}>
+                      {new Date(venda.data_venda).toLocaleTimeString('pt-BR')}
+                    </div>
+                  </div>
+                </td>
                 <td>
                   <span style={{ 
                     padding: '4px 8px', 
-                    borderRadius: '4px', 
+                    borderRadius: '0px', 
                     background: venda.status === 'concluida' ? '#c6f6d5' : '#fed7d7',
                     color: venda.status === 'concluida' ? '#2f855a' : '#c53030',
                     fontSize: '0.8em'

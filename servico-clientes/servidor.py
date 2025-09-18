@@ -172,6 +172,45 @@ def buscar_cliente(cliente_id):
     except Exception as e:
         return jsonify({'erro': f'Erro interno do servidor: {str(e)}'}), 500
 
+def validar_telefone(telefone):
+    """Validar formato do telefone brasileiro"""
+    import re
+    
+    # Remove todos os caracteres não numéricos
+    telefone_limpo = re.sub(r'[^\d]', '', telefone)
+    
+    # Verifica se tem 10 ou 11 dígitos (com ou sem DDD)
+    if len(telefone_limpo) not in [10, 11]:
+        return False, "Telefone deve ter 10 ou 11 dígitos"
+    
+    # Verifica se começa com DDD válido (11-99)
+    if len(telefone_limpo) == 11:
+        ddd = telefone_limpo[:2]
+        if not (11 <= int(ddd) <= 99):
+            return False, "DDD inválido"
+    
+    # Verifica se o número não é sequencial ou repetitivo
+    if len(set(telefone_limpo)) <= 2:
+        return False, "Número de telefone inválido"
+    
+    return True, telefone_limpo
+
+def formatar_telefone(telefone):
+    """Formatar telefone para (ddd) 0000-0000"""
+    import re
+    
+    # Remove todos os caracteres não numéricos
+    telefone_limpo = re.sub(r'[^\d]', '', telefone)
+    
+    if len(telefone_limpo) == 11:
+        # Formato: (XX) 00000-0000
+        return f"({telefone_limpo[:2]}) {telefone_limpo[2:7]}-{telefone_limpo[7:]}"
+    elif len(telefone_limpo) == 10:
+        # Formato: (XX) 0000-0000
+        return f"({telefone_limpo[:2]}) {telefone_limpo[2:6]}-{telefone_limpo[6:]}"
+    else:
+        return telefone  # Retorna original se não conseguir formatar
+
 @app.route('/clientes', methods=['POST'])
 def cadastrar_cliente():
     """Cadastrar novo cliente"""
@@ -187,6 +226,14 @@ def cadastrar_cliente():
     if not nome or not telefone:
         return jsonify({'erro': 'Nome e telefone não podem estar vazios'}), 400
     
+    # Validar telefone
+    telefone_valido, resultado_validacao = validar_telefone(telefone)
+    if not telefone_valido:
+        return jsonify({'erro': resultado_validacao}), 400
+    
+    # Formatar telefone automaticamente
+    telefone_formatado = formatar_telefone(telefone)
+    
     try:
         # Conectar com o banco de dados
         connection = get_db_connection()
@@ -196,21 +243,21 @@ def cadastrar_cliente():
         cursor = connection.cursor()
         cliente_id = str(uuid.uuid4())
         
-        # Inserir cliente no banco
+        # Inserir cliente no banco com telefone formatado
         cursor.execute(
             "INSERT INTO clientes (id, nome, telefone) VALUES (%s, %s, %s)",
-            (cliente_id, nome, telefone)
+            (cliente_id, nome, telefone_formatado)
         )
         
         connection.commit()
         cursor.close()
         connection.close()
         
-        # Retornar cliente criado
+        # Retornar cliente criado com telefone formatado
         novo_cliente = {
             'id': cliente_id,
             'nome': nome,
-            'telefone': telefone,
+            'telefone': telefone_formatado,
             'data_criacao': datetime.now().isoformat()
         }
         
@@ -233,6 +280,14 @@ def atualizar_cliente(cliente_id):
     if not nome or not telefone:
         return jsonify({'erro': 'Nome e telefone não podem estar vazios'}), 400
     
+    # Validar telefone
+    telefone_valido, resultado_validacao = validar_telefone(telefone)
+    if not telefone_valido:
+        return jsonify({'erro': resultado_validacao}), 400
+    
+    # Formatar telefone automaticamente
+    telefone_formatado = formatar_telefone(telefone)
+    
     try:
         # Conectar com o banco de dados
         connection = get_db_connection()
@@ -250,21 +305,27 @@ def atualizar_cliente(cliente_id):
             connection.close()
             return jsonify({'erro': 'Cliente não encontrado'}), 404
         
-        # Atualizar cliente no banco
+        # Atualizar cliente no banco com telefone formatado
         cursor.execute(
             "UPDATE clientes SET nome = %s, telefone = %s WHERE id = %s",
-            (nome, telefone, cliente_id)
+            (nome, telefone_formatado, cliente_id)
+        )
+        
+        # Atualizar nome do cliente em todas as vendas relacionadas
+        cursor.execute(
+            "UPDATE vendas SET cliente_nome = %s WHERE cliente_id = %s",
+            (nome, cliente_id)
         )
         
         connection.commit()
         cursor.close()
         connection.close()
         
-        # Retornar cliente atualizado
+        # Retornar cliente atualizado com telefone formatado
         cliente_atualizado = {
             'id': cliente_id,
             'nome': nome,
-            'telefone': telefone,
+            'telefone': telefone_formatado,
             'data_criacao': cliente_existente[3].isoformat() if cliente_existente[3] else None,
             'data_atualizacao': datetime.now().isoformat()
         }

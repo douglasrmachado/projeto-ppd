@@ -109,7 +109,7 @@ app.get('/produtos/:id', async (req, res) => {
 // POST /produtos - Cadastrar novo produto
 app.post('/produtos', async (req, res) => {
   try {
-    const { nome, descricao, valor } = req.body;
+    const { nome, descricao, valor, quantidade = 0, quantidade_minima = 5 } = req.body;
     
     // Validação básica
     if (!nome || !descricao || !valor) {
@@ -124,10 +124,22 @@ app.post('/produtos', async (req, res) => {
       });
     }
     
+    if (quantidade < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade não pode ser negativa' 
+      });
+    }
+    
+    if (quantidade_minima < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade mínima não pode ser negativa' 
+      });
+    }
+    
     const id = uuidv4();
     const [result] = await pool.execute(
-      'INSERT INTO produtos (id, nome, descricao, valor) VALUES (?, ?, ?, ?)',
-      [id, nome.trim(), descricao.trim(), parseFloat(valor)]
+      'INSERT INTO produtos (id, nome, descricao, valor, quantidade, quantidade_minima) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, nome.trim(), descricao.trim(), parseFloat(valor), parseInt(quantidade), parseInt(quantidade_minima)]
     );
     
     // Buscar o produto criado
@@ -147,7 +159,7 @@ app.post('/produtos', async (req, res) => {
 app.put('/produtos/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { nome, descricao, valor } = req.body;
+    const { nome, descricao, valor, quantidade, quantidade_minima } = req.body;
     
     // Validação básica
     if (!nome || !descricao || !valor) {
@@ -162,9 +174,21 @@ app.put('/produtos/:id', async (req, res) => {
       });
     }
     
+    if (quantidade !== undefined && quantidade < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade não pode ser negativa' 
+      });
+    }
+    
+    if (quantidade_minima !== undefined && quantidade_minima < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade mínima não pode ser negativa' 
+      });
+    }
+    
     const [result] = await pool.execute(
-      'UPDATE produtos SET nome = ?, descricao = ?, valor = ? WHERE id = ?',
-      [nome.trim(), descricao.trim(), parseFloat(valor), id]
+      'UPDATE produtos SET nome = ?, descricao = ?, valor = ?, quantidade = ?, quantidade_minima = ? WHERE id = ?',
+      [nome.trim(), descricao.trim(), parseFloat(valor), parseInt(quantidade || 0), parseInt(quantidade_minima || 5), id]
     );
     
     if (result.affectedRows === 0) {
@@ -180,6 +204,93 @@ app.put('/produtos/:id', async (req, res) => {
     res.json(produtos[0]);
   } catch (erro) {
     console.error('Erro ao atualizar produto:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
+  }
+});
+
+// PUT /produtos/:id/estoque - Atualizar apenas o estoque
+app.put('/produtos/:id/estoque', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quantidade, quantidade_minima } = req.body;
+    
+    if (quantidade === undefined && quantidade_minima === undefined) {
+      return res.status(400).json({ 
+        erro: 'Pelo menos um campo de estoque deve ser fornecido' 
+      });
+    }
+    
+    if (quantidade !== undefined && quantidade < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade não pode ser negativa' 
+      });
+    }
+    
+    if (quantidade_minima !== undefined && quantidade_minima < 0) {
+      return res.status(400).json({ 
+        erro: 'Quantidade mínima não pode ser negativa' 
+      });
+    }
+    
+    let query = 'UPDATE produtos SET ';
+    let params = [];
+    
+    if (quantidade !== undefined) {
+      query += 'quantidade = ?';
+      params.push(parseInt(quantidade));
+    }
+    
+    if (quantidade_minima !== undefined) {
+      if (quantidade !== undefined) {
+        query += ', ';
+      }
+      query += 'quantidade_minima = ?';
+      params.push(parseInt(quantidade_minima));
+    }
+    
+    query += ' WHERE id = ?';
+    params.push(id);
+    
+    const [result] = await pool.execute(query, params);
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ erro: 'Produto não encontrado' });
+    }
+    
+    // Buscar o produto atualizado
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos WHERE id = ?',
+      [id]
+    );
+    
+    res.json(produtos[0]);
+  } catch (erro) {
+    console.error('Erro ao atualizar estoque:', erro);
+    res.status(500).json({ erro: 'Erro interno do servidor' });
+  }
+});
+
+// GET /produtos/estoque-baixo - Listar produtos com estoque baixo
+app.get('/produtos/estoque-baixo', async (req, res) => {
+  try {
+    const [produtos] = await pool.execute(
+      'SELECT * FROM produtos WHERE quantidade <= quantidade_minima ORDER BY quantidade ASC'
+    );
+    
+    // Converter valores para números
+    const produtosFormatados = produtos.map(produto => ({
+      ...produto,
+      valor: parseFloat(produto.valor),
+      quantidade: parseInt(produto.quantidade),
+      quantidade_minima: parseInt(produto.quantidade_minima)
+    }));
+    
+    res.json({
+      produtos: produtosFormatados,
+      total: produtosFormatados.length
+    });
+  } catch (erro) {
+    console.error('Erro ao listar produtos com estoque baixo:', erro);
     res.status(500).json({ erro: 'Erro interno do servidor' });
   }
 });

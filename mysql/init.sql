@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS produtos (
     nome VARCHAR(255) NOT NULL,
     descricao TEXT,
     valor DECIMAL(10,2) NOT NULL,
+    quantidade INT NOT NULL DEFAULT 0,
+    quantidade_minima INT NOT NULL DEFAULT 5,
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_atualizacao TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
 );
@@ -47,11 +49,11 @@ CREATE TABLE IF NOT EXISTS itens_venda (
 );
 
 -- Inserir dados de exemplo
-INSERT INTO produtos (id, nome, descricao, valor) VALUES
-('550e8400-e29b-41d4-a716-446655440001', 'Notebook Dell', 'Notebook Dell Inspiron 15 3000', 2500.00),
-('550e8400-e29b-41d4-a716-446655440002', 'Mouse Logitech', 'Mouse sem fio Logitech M705', 89.90),
-('550e8400-e29b-41d4-a716-446655440003', 'Teclado Mecânico', 'Teclado mecânico RGB', 299.90),
-('550e8400-e29b-41d4-a716-446655440004', 'Monitor 24"', 'Monitor LED 24 polegadas', 599.90);
+INSERT INTO produtos (id, nome, descricao, valor, quantidade, quantidade_minima) VALUES
+('550e8400-e29b-41d4-a716-446655440001', 'Notebook Dell', 'Notebook Dell Inspiron 15 3000', 2500.00, 15, 5),
+('550e8400-e29b-41d4-a716-446655440002', 'Mouse Logitech', 'Mouse sem fio Logitech M705', 89.90, 50, 10),
+('550e8400-e29b-41d4-a716-446655440003', 'Teclado Mecânico', 'Teclado mecânico RGB', 299.90, 25, 8),
+('550e8400-e29b-41d4-a716-446655440004', 'Monitor 24"', 'Monitor LED 24 polegadas', 599.90, 8, 3);
 
 INSERT INTO clientes (id, nome, telefone) VALUES
 ('650e8400-e29b-41d4-a716-446655440001', 'João Silva', '(11) 99999-9999'),
